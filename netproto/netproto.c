@@ -31,6 +31,10 @@ static struct proto_ops shahp_ops;
 struct shahp_sock;
 struct proto shahp_proto;
 
+/*****************************************************************************/
+/******************************* PROTO OPS ***********************************/
+/*****************************************************************************/
+
 static int shahp_release(struct socket *sock)
 {
 	pdebug();
@@ -61,25 +65,7 @@ static int shahp_getname(struct socket *sock, struct sockaddr *addr, int *sockad
 	return 0;
 }
 
-static unsigned int shahp_poll(struct file *file, struct socket *sock, struct poll_table_struct *wait)
-{
-	pdebug();
-	return 0;
-}
-
-static int shahp_ioctl(struct socket *sock, unsigned int cmd, unsigned long arg)
-{
-	pdebug();
-	return 0;
-}
-
 static int shahp_listen(struct socket *sock, int len)
-{
-	pdebug();
-	return 0;
-}
-
-static int shahp_shutdown(struct socket *sock, int flags)
 {
 	pdebug();
 	return 0;
@@ -92,101 +78,62 @@ static int shahp_sendmsg(struct kiocb *iocb, struct socket *sock,
 	return 0;
 }
 
+static int shahp_recvmsg(struct kiocb *iocb, struct socket *sock,
+		struct msghdr *m, size_t total_len, int flags)
+{
+	pdebug();
+	return 0;
+}
+
+/*************************** PROTO OPS ENDS **********************************/
+
 /*****************************************************************************/
 /******************************* PROTO ***************************************/
 /*****************************************************************************/
 
-static void shahp_close(struct sock *sk, long timeout)
+static void shahp_proto_close(struct sock *sk, long timeout)
 {
 	pdebug();
 }
 
-static int shahp_bind1(struct sock *sk, struct sockaddr *addr, int len)
-{
-	pdebug();
-	return 0;
-}
-
-static int shahp_connect1(struct sock *sk, struct sockaddr *addr, int addr_len)
+static int shahp_proto_bind(struct sock *sk, struct sockaddr *addr, int len)
 {
 	pdebug();
 	return 0;
 }
 
-static int shahp_disconnect(struct sock *sk, int flags)
+static int shahp_proto_connect(struct sock *sk, struct sockaddr *addr, int addr_len)
 {
 	pdebug();
 	return 0;
 }
 
-static int shahp_ioctl1(struct sock *sk, int cmd, unsigned long arg)
+static int shahp_proto_disconnect(struct sock *sk, int flags)
 {
 	pdebug();
 	return 0;
 }
 
-static int shahp_init(struct sock *sk)
+static int shahp_proto_sendmsg(struct kiocb *iocb, struct sock *sk, struct msghdr *msg, size_t len)
 {
 	pdebug();
 	return 0;
 }
 
-static void shahp_destroy(struct sock *sk)
-{
-	pdebug();
-}
-
-static int shahp_setsockopt(struct sock *sk, int level, int optname, char __user *optval, unsigned int optlen)
-{
-	pdebug();
-	return 0;
-}
-
-static int shahp_getsockopt(struct sock *sk, int level, int optname, char __user *optval, int __user *option)
-{
-	pdebug();
-	return 0;
-}
-
-static int shahp_sendmsg1(struct kiocb *iocb, struct sock *sk, struct msghdr *msg, size_t len)
-{
-	pdebug();
-	return 0;
-}
-
-static int shahp_recvmsg1(struct kiocb *iocb, struct sock *sk, struct msghdr *msg,
+static int shahp_proto_recvmsg(struct kiocb *iocb, struct sock *sk, struct msghdr *msg,
 		size_t len, int noblock, int flags, int *addr_len)
 {
 	pdebug();
 	return 0;
 }
 
-static void shahp_hash(struct sock *sk)
-{
-	pdebug();
-}
-
-static void shahp_unhash(struct sock *sk)
-{
-	pdebug();
-}
-
-static int shahp_get_port(struct sock *sk, unsigned short snum)
-{
-	pdebug();
-	return 0;
-}
-
-
-/*****************************************************************************/
+/*************************** PROTO ENDS **************************************/
 
 static int shahp_create_socket(struct net *net, struct socket *sock, int protocol, int kern)
 {
 	struct sock *sk;
 
 	pdebug();
-
-	return 0;
 
 	sk = sk_alloc(net, AF_INET_SHAHP, GFP_KERNEL, &shahp_proto);
 	if (!sk) {
@@ -196,7 +143,6 @@ static int shahp_create_socket(struct net *net, struct socket *sock, int protoco
 	sock_init_data(sock, sk);
 	sk->sk_protocol = 0x0;
 	sock->ops = &shahp_ops;
-	sock->state = SS_UNCONNECTED;
 	return 0;
 }
 
@@ -208,31 +154,12 @@ struct shahp_sock {
 struct proto shahp_proto = {
 	.name = "SHAHP",
 	.owner = THIS_MODULE,
-	.close = shahp_close,
-	.bind = shahp_bind1,
-	.connect = shahp_connect1,
-	.disconnect = shahp_disconnect,
-	//.accept = shahp_accept,
-	//.ioctl = shahp_ioctl1,
-	//.init = shahp_init,
-	//.destroy = shahp_destroy,
-	//.shutdown = shahp_shutdown,
-	.setsockopt = shahp_setsockopt,
-	.getsockopt = shahp_getsockopt,
-	.sendmsg = shahp_sendmsg1,
-	.recvmsg = shahp_recvmsg1,
-	.hash = shahp_hash,
-	.unhash = shahp_unhash,
-	//.get_port = shahp_get_port,
-	//.enter_memory_pressure = shahp_enter_memory_pressure,
-	//.sockets_allocated = &sockets_allocated,
-	//.memory_allocated = &memory_allocated,
-	//.memory_pressure = &memory_pressure,
-	//.orphan_count = &orphan_count,
-	//.sysctl_mem = sysctl_tcp_mem,
-	//.sysctl_wmem = sysctl_tcp_wmem,
-	//.sysctl_rmem = sysctl_tcp_rmem,
-	//.max_header = 0,
+	.close = shahp_proto_close,
+	.bind = shahp_proto_bind,
+	.connect = shahp_proto_connect,
+	.disconnect = shahp_proto_disconnect,
+	.sendmsg = shahp_proto_sendmsg,
+	.recvmsg = shahp_proto_recvmsg,
 	.obj_size = sizeof(struct sock),
 };
 
@@ -248,17 +175,11 @@ static struct proto_ops shahp_ops = {
 	.release = shahp_release,
 	.bind = shahp_bind,
 	.connect = shahp_connect,
-	.socketpair = sock_no_socketpair,
 	.accept = shahp_accept,
 	.getname = shahp_getname,
-	.poll = shahp_poll,
-	.ioctl = shahp_ioctl,
 	.listen = shahp_listen,
-	.shutdown = shahp_shutdown,
-	.setsockopt = sock_common_setsockopt,
-	.getsockopt = sock_common_getsockopt,
 	.sendmsg = shahp_sendmsg,
-	.recvmsg = sock_common_recvmsg,
+	.recvmsg = shahp_recvmsg,
 };
 
 static int __init netproto_init(void)
