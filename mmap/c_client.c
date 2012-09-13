@@ -1,5 +1,5 @@
 /*
- * client - Linux client to access the kernel mmap area
+ * c_client - Linux C client to access the kernel mmap area
  *
  * Written in 2012 by Prashant P Shah <pshah.mumbai@gmail.com>
  *
