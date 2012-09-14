@@ -22,6 +22,7 @@
 #include <linux/semaphore.h>
 #include <linux/mm.h>
 #include <linux/slab.h>
+#include <linux/blkdev.h>
 
 struct demo_mmap_device {
 	int valid;
@@ -29,12 +30,22 @@ struct demo_mmap_device {
 	struct cdev cdev;
 } demo_mmap_dev;
 
+struct block_device *bd;
+
 int demo_mmap_major  = 0;
 int demo_mmap_minor  = 1;
 int demo_mmap_nr_dev = 1;
-int demo_mmap_block_size = 0;
-int demo_mmap_part_size = 0;
 
+unsigned int demo_mmap_page_size;
+unsigned int demo_mmap_block_size = 0;
+u64 demo_mmap_start_sector = 0;
+u64 demo_mmap_nr_sector = 0;
+unsigned short demo_mmap_logical_block_size = 0;
+unsigned short demo_mmap_physical_block_size = 0;
+u64 demo_mmap_disk_size = 0;
+u64 demo_mmap_nr_block = 0;
+
+static void *vmalloc_ptr = NULL;
 static void *kmalloc_ptr = NULL;
 static unsigned int *kmalloc_addr = NULL; /* page aligned kmalloc_ptr */
 
@@ -82,15 +93,27 @@ static int demo_mmap_mmap(struct file *filp, struct vm_area_struct *vma)
 	printk(KERN_DEBUG "demo_mmap: %s\n", __FUNCTION__);
 
 	/* check the size of shared memory requested */
-	if (length > N_PAGES * PAGE_SIZE) {
-		printk(KERN_NOTICE "demo_mmap: requested memory size exceeded max limits\n");
-		return -EIO;
+	//if (length > N_PAGES * PAGE_SIZE) {
+	//	printk(KERN_NOTICE "demo_mmap: requested memory size exceeded max limits\n");
+	//	return -EIO;
+	//}
+
+	printk(KERN_NOTICE "demo_mmap: vma: start=%lx, pgoff=%lx end=%lx flags=%lx\n",
+			vma->vm_start, vma->vm_pgoff, vma->vm_end, vma->vm_flags);
+
+	/* check for correct protection flags */
+	if (!(vma->vm_flags & VM_SHARED)) {
+		printk(KERN_ERR "demo_mmap: shared memory must be shared to avoid COW\n");
+		return -EINVAL;
 	}
+	if (vma->vm_flags & VM_WRITE) {
+		printk(KERN_ERR "demo_mmap: shared memory cannot be writable\n");
+		return -EINVAL;
+	}
+	vma->vm_flags |= VM_LOCKED; /* dont swap out shared memory */
 
-	printk(KERN_NOTICE "demo_mmap: vma: start=%lx, pgoff=%lx end=%lx\n",
-			vma->vm_start, vma->vm_pgoff, vma->vm_end);
-
-	vma->vm_flags |= VM_LOCKED;
+	printk(KERN_NOTICE "demo_mmap: vma: start=%lx, pgoff=%lx end=%lx protection=%lx\n",
+			vma->vm_start, vma->vm_pgoff, vma->vm_end, vma->vm_page_prot);
 
 	/* build page tables to map range of physical memory */
 	if (remap_pfn_range(vma, vma->vm_start,
@@ -111,14 +134,14 @@ static int demo_mmap_mmap(struct file *filp, struct vm_area_struct *vma)
 
 static void demo_mmap_vma_open(struct vm_area_struct *vma)
 {
-	int c;
+	//int c;
 	printk(KERN_DEBUG "demo_mmap: %s\n", __FUNCTION__);
 
 	counter = *(unsigned char *)kmalloc_ptr;
 
-	for (c = 0; c < (PAGE_SIZE * N_PAGES); c++) {
-		*((unsigned char *)kmalloc_ptr + c) = counter;
-	}
+	//for (c = 0; c < (PAGE_SIZE * N_PAGES); c++) {
+	//	*((unsigned char *)kmalloc_ptr + c) = counter;
+	//}
 }
 
 static void demo_mmap_vma_close(struct vm_area_struct *vma)
@@ -164,18 +187,69 @@ static int __init demo_mmap_init(void)
 	int ret;
 	dev_t dev_num = 0;
 	struct demo_mmap_device *dev = &demo_mmap_dev;	/* local 'dev' pointer to global demo_mmap_dev structure */
+	unsigned int rem;
+	u64 bitmap_size;
+	u64 temp;
+	//unsigned long virt_addr;
 	printk(KERN_DEBUG "demo_mmap: %s\n", __FUNCTION__);
 
+	// Read block device and calculate various parameter
+	bd = blkdev_get_by_path("/dev/sda5", FMODE_READ, NULL); /* mode in which to open the block device */
+	if (!IS_ERR(bd)) {
+		printk(KERN_INFO "nucdp: found block device with major number %d\n",
+			bd->bd_disk->major);
+	}
+	demo_mmap_page_size = PAGE_SIZE;
+	demo_mmap_block_size = bd->bd_block_size;
+	demo_mmap_start_sector = bd->bd_part->start_sect;
+	demo_mmap_nr_sector = bd->bd_part->nr_sects;
+	demo_mmap_logical_block_size = bdev_logical_block_size(bd);
+	demo_mmap_physical_block_size = bdev_physical_block_size(bd);
+	// TODO : What to do if demo_mmap_disk_size overflows u64 size
+	demo_mmap_disk_size = (demo_mmap_nr_sector * demo_mmap_logical_block_size);
+	temp = demo_mmap_disk_size; // For do_div() since it will store the result in the first parameter itself
+	do_div(temp, demo_mmap_block_size);
+	demo_mmap_nr_block = temp;
+	printk(KERN_INFO "demo_mmap: page size %d\n", demo_mmap_page_size);
+	printk(KERN_INFO "demo_mmap: fs block size %d\n", demo_mmap_block_size);
+	printk(KERN_INFO "demo_mmap: start sector %llu\n", demo_mmap_start_sector);
+	printk(KERN_INFO "demo_mmap: number of sectors %llu\n", demo_mmap_nr_sector);
+	printk(KERN_INFO "demo_mmap: logical block size %d\n", demo_mmap_logical_block_size);
+	printk(KERN_INFO "demo_mmap: physical block size %d\n", demo_mmap_physical_block_size);
+	printk(KERN_INFO "demo_mmap: disk size %llu\n", demo_mmap_disk_size);
+	printk(KERN_INFO "demo_mmap: number of fs blocks %llu\n", demo_mmap_nr_block);
+
+	temp = demo_mmap_nr_block;
+	rem = do_div(temp, 8);
+	// check if it all blocks fit in 8 BIT boundary
+	if (rem == 0) {
+		temp = demo_mmap_nr_block;
+		do_div(temp, 8);
+		//bitmap_size = demo_mmap_nr_block / 8;
+	} else {
+		temp = demo_mmap_nr_block;
+		do_div(temp, 8);
+		temp++;		// Extra byte for last few blocks that are outside of 8 BIT boundary
+		//bitmap_size = (demo_mmap_nr_block / 8) + 1;	// Extra byte for remainder blocks
+	}
+	bitmap_size = temp;
+
 	/*
-	 * allocate kernel shared memory for communication with userspace using mmap
-	 * add 2 extra pages for header and footer, useful if the memory is not
-	 * page aligned
+	 * Add one page extra memory so that if the allocation is not page
+	 * aligned we can start our bitmap futher in memory so that it is page
+	 * aligned. To do that we need to allocate extra memory
 	 */
-	kmalloc_ptr = kmalloc(PAGE_SIZE * (N_PAGES + 2), GFP_KERNEL);
+	bitmap_size += demo_mmap_block_size;
+	printk(KERN_INFO "demo_mmap: bitmap size %llu, %lu\n", bitmap_size, max_mapnr);
+
+	/************************ KMALLOC ***********************/
+	/* allocate kernel shared memory for communication with userspace using mmap */
+	// Memory allocation fails at anything above 4194304 bytes (4096 * 1024)
+	kmalloc_ptr = kmalloc(bitmap_size, GFP_KERNEL);
 	if (kmalloc_ptr) {
 		printk(KERN_INFO "demo_mmap: kmalloc_ptr %p\n", kmalloc_ptr);
 	} else {
-		printk(KERN_INFO "demo_mmap: failed to allocate shared memory\n");
+		printk(KERN_INFO "demo_mmap: failed to kmallocate shared memory of %llu bytes\n", bitmap_size);
 		return -EIO;
 	}
 
@@ -186,6 +260,23 @@ static int __init demo_mmap_init(void)
 		kmalloc_addr = (int *)((unsigned long)kmalloc_ptr +
 			(PAGE_SIZE - ((unsigned long)kmalloc_ptr % PAGE_SIZE)));
 	}
+
+	/************************ VMALLOC ***********************/
+	/* allocate kernel shared memory for communication with userspace using mmap */
+	vmalloc_ptr = vmalloc(bitmap_size * 32);
+	if (vmalloc_ptr) {
+		printk(KERN_INFO "demo_mmap: vmalloc_ptr %p allocated %llu bytes ok\n", vmalloc_ptr, bitmap_size * 32);
+	} else {
+		printk(KERN_INFO "demo_mmap: failed to vmallocate shared memory of %llu bytes\n", bitmap_size * 32);
+		return -EIO;
+	}
+
+	/* reserve all pages to make them remapable */
+	//for (virt_addr = (unsigned long)kmalloc_addr;
+	//		virt_addr < (unsigned long)kmalloc_addr + (N_PAGES * PAGE_SIZE);
+	//		virt_addr += PAGE_SIZE) {
+	//	mem_map_reserve(virt_to_page(virt_addr));
+	//}
 
 	/* allocating major number for character device */
 	if (demo_mmap_major > 0) {
@@ -218,6 +309,7 @@ static void __exit demo_mmap_exit(void)
 {
 	dev_t dev_num;
 	struct demo_mmap_device *dev = &demo_mmap_dev;
+	//unsigned long virt_addr;
 	printk(KERN_DEBUG "demo_mmap: %s\n", __FUNCTION__);
 
 	if (demo_mmap_major > 0) {
@@ -228,11 +320,24 @@ static void __exit demo_mmap_exit(void)
 		unregister_chrdev_region(dev_num, demo_mmap_nr_dev);
 	}
 
+	/* unreserve all pages */
+	//for (virt_addr = (unsigned long)kmalloc_addr;
+	//		virt_addr < (unsigned long)kmalloc_addr + (N_PAGES * PAGE_SIZE);
+	//		virt_addr += PAGE_SIZE) {
+	//	mem_map_unreserve(virt_to_page(virt_addr));
+	//}
+
+	if (!IS_ERR(bd)) {
+		blkdev_put(bd, FMODE_READ);
+	}
+
 	/* free shared memory */
 	if (kmalloc_ptr) {
 		kfree(kmalloc_ptr);
 	}
-
+	if (vmalloc_ptr) {
+		vfree(vmalloc_ptr);
+	}
 }
 
 module_init(demo_mmap_init);
