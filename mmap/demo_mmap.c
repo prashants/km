@@ -44,6 +44,7 @@ unsigned short demo_mmap_logical_block_size = 0;
 unsigned short demo_mmap_physical_block_size = 0;
 u64 demo_mmap_disk_size = 0;
 u64 demo_mmap_nr_block = 0;
+u64 demo_mmap_bitmap_size;
 
 static void *vmalloc_ptr = NULL;
 static void *kmalloc_ptr = NULL;
@@ -93,10 +94,10 @@ static int demo_mmap_mmap(struct file *filp, struct vm_area_struct *vma)
 	printk(KERN_DEBUG "demo_mmap: %s\n", __FUNCTION__);
 
 	/* check the size of shared memory requested */
-	//if (length > N_PAGES * PAGE_SIZE) {
-	//	printk(KERN_NOTICE "demo_mmap: requested memory size exceeded max limits\n");
-	//	return -EIO;
-	//}
+	if (length > (demo_mmap_bitmap_size - demo_mmap_block_size)) { // removing the extra block size allocation that we did when allocating memory
+		printk(KERN_NOTICE "demo_mmap: requested memory size exceeded max limits\n");
+		return -EIO;
+	}
 
 	printk(KERN_NOTICE "demo_mmap: vma: start=%lx, pgoff=%lx end=%lx flags=%lx\n",
 			vma->vm_start, vma->vm_pgoff, vma->vm_end, vma->vm_flags);
@@ -112,10 +113,11 @@ static int demo_mmap_mmap(struct file *filp, struct vm_area_struct *vma)
 	}
 	vma->vm_flags |= VM_LOCKED; /* dont swap out shared memory */
 
-	printk(KERN_NOTICE "demo_mmap: vma: start=%lx, pgoff=%lx end=%lx protection=%lx\n",
-			vma->vm_start, vma->vm_pgoff, vma->vm_end, vma->vm_page_prot);
+	printk(KERN_NOTICE "demo_mmap: vma: start=%lx, pgoff=%lx end=%lx\n",
+			vma->vm_start, vma->vm_pgoff, vma->vm_end);
 
 	/* build page tables to map range of physical memory */
+	/* USE KMALLOC */
 	if (remap_pfn_range(vma, vma->vm_start,
 			virt_to_phys((void *)kmalloc_addr) >> PAGE_SHIFT,
 			length,
@@ -123,6 +125,9 @@ static int demo_mmap_mmap(struct file *filp, struct vm_area_struct *vma)
 		printk(KERN_NOTICE "demo_mmap: failed to map memory\n");
 		return -EAGAIN;
 	}
+
+	/* USE VMALLOC */
+
 
 	printk(KERN_NOTICE "demo_mmap: vma virt %lx : virt_to_phys %lu\n",
 		vma->vm_start, (unsigned long)(virt_to_phys((void *)kmalloc_addr) >> PAGE_SHIFT));
@@ -134,14 +139,15 @@ static int demo_mmap_mmap(struct file *filp, struct vm_area_struct *vma)
 
 static void demo_mmap_vma_open(struct vm_area_struct *vma)
 {
-	//int c;
+	int c;
 	printk(KERN_DEBUG "demo_mmap: %s\n", __FUNCTION__);
 
 	counter = *(unsigned char *)kmalloc_ptr;
 
-	//for (c = 0; c < (PAGE_SIZE * N_PAGES); c++) {
-	//	*((unsigned char *)kmalloc_ptr + c) = counter;
-	//}
+	/* setting all the shared memory to the counter value */
+	for (c = 0; c < demo_mmap_bitmap_size; c++) {
+		*((unsigned char *)kmalloc_ptr + c) = counter;
+	}
 }
 
 static void demo_mmap_vma_close(struct vm_area_struct *vma)
@@ -188,7 +194,6 @@ static int __init demo_mmap_init(void)
 	dev_t dev_num = 0;
 	struct demo_mmap_device *dev = &demo_mmap_dev;	/* local 'dev' pointer to global demo_mmap_dev structure */
 	unsigned int rem;
-	u64 bitmap_size;
 	u64 temp;
 	//unsigned long virt_addr;
 	printk(KERN_DEBUG "demo_mmap: %s\n", __FUNCTION__);
@@ -199,6 +204,7 @@ static int __init demo_mmap_init(void)
 		printk(KERN_INFO "nucdp: found block device with major number %d\n",
 			bd->bd_disk->major);
 	}
+
 	demo_mmap_page_size = PAGE_SIZE;
 	demo_mmap_block_size = bd->bd_block_size;
 	demo_mmap_start_sector = bd->bd_part->start_sect;
@@ -210,6 +216,7 @@ static int __init demo_mmap_init(void)
 	temp = demo_mmap_disk_size; // For do_div() since it will store the result in the first parameter itself
 	do_div(temp, demo_mmap_block_size);
 	demo_mmap_nr_block = temp;
+
 	printk(KERN_INFO "demo_mmap: page size %d\n", demo_mmap_page_size);
 	printk(KERN_INFO "demo_mmap: fs block size %d\n", demo_mmap_block_size);
 	printk(KERN_INFO "demo_mmap: start sector %llu\n", demo_mmap_start_sector);
@@ -225,31 +232,29 @@ static int __init demo_mmap_init(void)
 	if (rem == 0) {
 		temp = demo_mmap_nr_block;
 		do_div(temp, 8);
-		//bitmap_size = demo_mmap_nr_block / 8;
 	} else {
 		temp = demo_mmap_nr_block;
 		do_div(temp, 8);
 		temp++;		// Extra byte for last few blocks that are outside of 8 BIT boundary
-		//bitmap_size = (demo_mmap_nr_block / 8) + 1;	// Extra byte for remainder blocks
 	}
-	bitmap_size = temp;
+	demo_mmap_bitmap_size = temp;
 
 	/*
 	 * Add one page extra memory so that if the allocation is not page
 	 * aligned we can start our bitmap futher in memory so that it is page
 	 * aligned. To do that we need to allocate extra memory
 	 */
-	bitmap_size += demo_mmap_block_size;
-	printk(KERN_INFO "demo_mmap: bitmap size %llu, %lu\n", bitmap_size, max_mapnr);
+	demo_mmap_bitmap_size += demo_mmap_block_size;
+	printk(KERN_INFO "demo_mmap: bitmap size %llu\n", demo_mmap_bitmap_size);
 
 	/************************ KMALLOC ***********************/
 	/* allocate kernel shared memory for communication with userspace using mmap */
 	// Memory allocation fails at anything above 4194304 bytes (4096 * 1024)
-	kmalloc_ptr = kmalloc(bitmap_size, GFP_KERNEL);
+	kmalloc_ptr = kmalloc(demo_mmap_bitmap_size, GFP_KERNEL);
 	if (kmalloc_ptr) {
-		printk(KERN_INFO "demo_mmap: kmalloc_ptr %p\n", kmalloc_ptr);
+		printk(KERN_INFO "demo_mmap: kmalloc_ptr %p allocated %llu bytes ok\n", kmalloc_ptr, demo_mmap_bitmap_size);
 	} else {
-		printk(KERN_INFO "demo_mmap: failed to kmallocate shared memory of %llu bytes\n", bitmap_size);
+		printk(KERN_INFO "demo_mmap: failed to kmallocate shared memory of %llu bytes\n", demo_mmap_bitmap_size);
 		return -EIO;
 	}
 
@@ -263,11 +268,12 @@ static int __init demo_mmap_init(void)
 
 	/************************ VMALLOC ***********************/
 	/* allocate kernel shared memory for communication with userspace using mmap */
-	vmalloc_ptr = vmalloc(bitmap_size * 32);
+	// Memory allocation fails at anything above 80MB
+	vmalloc_ptr = vmalloc(demo_mmap_bitmap_size * 30);
 	if (vmalloc_ptr) {
-		printk(KERN_INFO "demo_mmap: vmalloc_ptr %p allocated %llu bytes ok\n", vmalloc_ptr, bitmap_size * 32);
+		printk(KERN_INFO "demo_mmap: vmalloc_ptr %p allocated %llu bytes ok\n", vmalloc_ptr, demo_mmap_bitmap_size * 30);
 	} else {
-		printk(KERN_INFO "demo_mmap: failed to vmallocate shared memory of %llu bytes\n", bitmap_size * 32);
+		printk(KERN_INFO "demo_mmap: failed to vmallocate shared memory of %llu bytes\n", demo_mmap_bitmap_size * 30);
 		return -EIO;
 	}
 
