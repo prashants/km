@@ -1,4 +1,4 @@
-obj-m += demo_mmap.o
+obj-m += filter.o
 
 KERNELDIR := /lib/modules/$(shell uname -r)/build
 
