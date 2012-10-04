@@ -28,7 +28,7 @@ static int kthread_do_things(void *data)
 	int val = *(int *)data;		/* read the value pointed to by data */
 
 	set_current_state(TASK_UNINTERRUPTIBLE);
-	schedule_timeout((4-val) * HZ);	/* adding delay in seconds */
+	schedule_timeout((4 - val) * HZ);	/* adding delay in seconds */
 
 	printk(KERN_INFO "kthread: I am running in thread %d!\n", val);
 	return 0;
@@ -39,7 +39,7 @@ static int __init kthread_init(void)
 	struct task_struct *t1;
 	struct task_struct *t2;
 	struct task_struct *t3;
-	printk(KERN_DEBUG "kthread: %s\n", __FUNCTION__);
+	printk(KERN_INFO "kthread: %s\n", __FUNCTION__);
 
 	t1 = kthread_run(kthread_do_things, &c1, "mykthread1");
 
@@ -52,7 +52,7 @@ static int __init kthread_init(void)
 
 static void __exit kthread_exit(void)
 {
-	printk(KERN_DEBUG "kthread: %s\n", __FUNCTION__);
+	printk(KERN_INFO "kthread: %s\n", __FUNCTION__);
 }
 
 module_init(kthread_init);
