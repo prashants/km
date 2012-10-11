@@ -29,10 +29,10 @@ static void do_things(unsigned long data)
 {
 	printk(KERN_INFO "tasklet: I am tasket with data %lu!\n", data);
 
-	printk(KERN_INFO "tasklet: in_atomic=%d", in_atomic());
-	printk(KERN_INFO "tasklet: in_interrupt=%lu", in_interrupt());
-	printk(KERN_INFO "tasklet: in_irq=%lu", in_irq());
-	printk(KERN_INFO "tasklet: in_softirq=%lu", in_softirq());
+	printk(KERN_INFO "tasklet: in_atomic=%d\n", in_atomic());
+	printk(KERN_INFO "tasklet: in_interrupt=%lu\n", in_interrupt());
+	printk(KERN_INFO "tasklet: in_irq=%lu\n", in_irq());
+	printk(KERN_INFO "tasklet: in_softirq=%lu\n", in_softirq());
 
 	return;
 }
@@ -46,6 +46,10 @@ static int __init mytasklet_init(void)
 
 	/* dynamic tasklet */
 	dynamic_task = (struct tasklet_struct *)kmalloc(sizeof(struct tasklet_struct), GFP_KERNEL);
+	if (!dynamic_task) {
+		printk(KERN_INFO "tasklet: failed to create tasklet\n");
+		return 0;
+	}
 	tasklet_init(dynamic_task, do_things, 2);
 	tasklet_schedule(dynamic_task);
 
