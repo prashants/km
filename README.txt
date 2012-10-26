@@ -2,12 +2,6 @@ Sample linux kernel modules for learning purposes
 
 Author : Prashant P Shah <pshah.mumbai@gmail.com>
 
-List of linux kernel modules :
-
-simple_char : Simple character device
-usb_info : USB device information
-mmap : Kernel - user space transfer using mmap
-
 LICENSE :
 ---------
 
