@@ -1,5 +1,5 @@
 /*
- * circularbuf - Circular buffers demo
+ * cbuffer - Circular buffers demo
  *
  * Written in 2012 by Prashant P Shah <pshah.mumbai@gmail.com>
  *
@@ -31,7 +31,7 @@ static void producer(void)
 		circ.buf[circ.head] = 1;
 		smp_wmb();
 		circ.head = (circ.head + 1) & (MAX_BUF_SIZE - 1);
-		printk(KERN_INFO "circularbuf: producer = %d\n", circ.buf[circ.tail]);
+		printk(KERN_INFO "cbuffer: producer = %d\n", circ.buf[circ.tail]);
 	}
 }
 
@@ -40,39 +40,39 @@ static void consumer(void)
 {
 	if (CIRC_CNT(circ.head, circ.tail, MAX_BUF_SIZE) >= 1) {
 		smp_read_barrier_depends();
-		printk(KERN_INFO "circularbuf: consumer = %d\n", circ.buf[circ.tail]);
+		printk(KERN_INFO "cbuffer: consumer = %d\n", circ.buf[circ.tail]);
 		smp_mb();
 		circ.tail = (circ.tail + 1) & (MAX_BUF_SIZE - 1);
 	}
 }
 
-static int __init circularbuf_init(void)
+static int __init cbuffer_init(void)
 {
-	printk(KERN_INFO "circularbuf: %s\n", __FUNCTION__);
+	printk(KERN_INFO "cbuffer: %s\n", __FUNCTION__);
 
 	/* allocating buffer space */
 	circ.buf = kzalloc(MAX_BUF_SIZE, GFP_KERNEL);
 	if (!circ.buf) {
-		printk(KERN_INFO "circularbuf: failed to allocate memory for circular buffers\n");
+		printk(KERN_INFO "cbuffer: failed to allocate memory for circular buffers\n");
 	} else {
-		printk(KERN_INFO "circularbuf: allocated circular buffer of size=%d bytes\n",
+		printk(KERN_INFO "cbuffer: allocated circular buffer of size=%d bytes\n",
 			CIRC_SPACE(circ.head, circ.tail, MAX_BUF_SIZE));
 	}
 
 	return 0;
 }
 
-static void __exit circularbuf_exit(void)
+static void __exit cbuffer_exit(void)
 {
-	printk(KERN_INFO "circularbuf: %s\n", __FUNCTION__);
+	printk(KERN_INFO "cbuffer: %s\n", __FUNCTION__);
 
 	if (circ.buf) {
 		kfree(circ.buf);
 	}
 }
 
-module_init(circularbuf_init);
-module_exit(circularbuf_exit);
+module_init(cbuffer_init);
+module_exit(cbuffer_exit);
 
 /* Note: Actual license is PUBLIC DOMAIN but since its compatible
  * with GPL so I have substituted "GPL" string here. Currently linux kernel
