@@ -18,6 +18,7 @@
 #include <linux/module.h>
 #include <linux/fs.h>
 #include <linux/blkdev.h>
+#include <linux/buffer_head.h>
 
 #define PARTITION_NAME "/dev/sda1"
 
@@ -38,9 +39,6 @@ static void filter_mrqfn(struct request_queue *q, struct bio *bio)
 	 * request
 	 */
 
-	printk(KERN_DEBUG "filter: inode %lu\n",
-		(unsigned long)bio->bi_io_vec->bv_page->mapping->host->i_ino);
-
 	orig_mrqfn(q, bio); /* calling the original make_request_fn() */
 }
 
@@ -50,11 +48,12 @@ static void filter_mrqfn(struct request_queue *q, struct bio *bio)
  */
 static void set_mrqfn(void)
 {
-	struct super_block *sb =  bd->bd_super;
+	struct super_block *sb;
 	printk(KERN_DEBUG "filter: %s\n", __FUNCTION__);
 
 	/* lock filesystem to prevent any further changes */
-	freeze_super(sb);
+	fsync_bdev(bd);
+	sb = freeze_bdev(bd);
 
 	if (bd->bd_disk->queue->make_request_fn == filter_mrqfn) {
 		printk(KERN_INFO "filter: modules request function is already active\n");
@@ -66,7 +65,7 @@ static void set_mrqfn(void)
 	}
 
 	/* unlock filesystem */
-	thaw_super(sb);
+	thaw_bdev(bd, sb);
 }
 
 /*
@@ -79,13 +78,14 @@ static void restore_mrqfn(void)
 
 	if (orig_mrqfn) {
 		/* lock filesystem to prevent any further changes */
-		freeze_super(sb);
+		fsync_bdev(bd);
+		sb = freeze_bdev(bd);
 
 		/* restore the original request function */
 		bd->bd_disk->queue->make_request_fn = orig_mrqfn;
 
 		/* unlock filesystem */
-		thaw_super(sb);
+		thaw_bdev(bd, sb);
 	}
 	orig_mrqfn = NULL;
 }
