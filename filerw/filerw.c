@@ -44,6 +44,7 @@ static int __init filerw_init(void)
 		ret = vfs_read(f, data, sizeof(data), &off);
 		data[49] = '\0';
 		printk(KERN_DEBUG "filerw: read %d bytes :\n%s\n", ret, data);
+		printk(KERN_DEBUG "filerw: inode %lu\n", f->f_path.dentry->d_inode->i_ino);
 		filp_close(f, 0);
 	}
 

@@ -8,7 +8,7 @@ default:
 	$(MAKE) -C $(KERNELDIR) M=$(PWD)
 
 clean:
-	rm -rf *.o *~ core .depend .*.cmd *.ko *.mod.c .tmp_version modules.order  Module.symvers
+	rm -rf *.o *~ core .depend .*.cmd *.ko *.mod.c .tmp_versions modules.order  Module.symvers
 
 depend .depend dep:
 	$(CC) $(CFLAGS) -M *.c > .depend
