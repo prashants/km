@@ -195,8 +195,24 @@ static int __init demo_mmap_init(void)
 	struct demo_mmap_device *dev = &demo_mmap_dev;	/* local 'dev' pointer to global demo_mmap_dev structure */
 	unsigned int rem;
 	u64 temp;
+	int c;
+	char *test_alloc[200];
 	//unsigned long virt_addr;
 	printk(KERN_DEBUG "demo_mmap: %s\n", __FUNCTION__);
+
+	/* Test allocation of large amount of memory using kmalloc */
+	for (c = 0; c < 200; c++) {
+		test_alloc[c] = (char *)kmalloc(2 * 1024 * 1024, GFP_KERNEL); // 2 MB allocation
+		if (test_alloc[c]) {
+			printk(KERN_INFO "demo_mmap: test_alloc at %d allocated %d bytes ok\n", c, 2 * 1024 * 1024);
+		} else {
+			printk(KERN_INFO "demo_mmap: failed to test_alloc at %d\n", c);
+			return -EIO;
+		}
+	}
+	for (c = 0; c < 200; c++) {
+		kfree(test_alloc[c]);
+	}
 
 	// Read block device and calculate various parameter
 	bd = blkdev_get_by_path("/dev/sda5", FMODE_READ, NULL); /* mode in which to open the block device */
@@ -269,13 +285,13 @@ static int __init demo_mmap_init(void)
 	/************************ VMALLOC ***********************/
 	/* allocate kernel shared memory for communication with userspace using mmap */
 	// Memory allocation fails at anything above 80MB
-	vmalloc_ptr = vmalloc(demo_mmap_bitmap_size * 30);
-	if (vmalloc_ptr) {
-		printk(KERN_INFO "demo_mmap: vmalloc_ptr %p allocated %llu bytes ok\n", vmalloc_ptr, demo_mmap_bitmap_size * 30);
-	} else {
-		printk(KERN_INFO "demo_mmap: failed to vmallocate shared memory of %llu bytes\n", demo_mmap_bitmap_size * 30);
-		return -EIO;
-	}
+	//vmalloc_ptr = vmalloc(demo_mmap_bitmap_size * 30);
+	//if (vmalloc_ptr) {
+	//	printk(KERN_INFO "demo_mmap: vmalloc_ptr %p allocated %llu bytes ok\n", vmalloc_ptr, demo_mmap_bitmap_size * 30);
+	//} else {
+	//	printk(KERN_INFO "demo_mmap: failed to vmallocate shared memory of %llu bytes\n", demo_mmap_bitmap_size * 30);
+	//	return -EIO;
+	//}
 
 	/* reserve all pages to make them remapable */
 	//for (virt_addr = (unsigned long)kmalloc_addr;
