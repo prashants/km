@@ -39,19 +39,19 @@ static int kthread_do_things(void *data)
 static int __init mycompletion_init(void)
 {
 	struct task_struct *kt;
-	printk(KERN_INFO "kthread: %s\n", __FUNCTION__);
+	printk(KERN_INFO "mycompletion: %s\n", __FUNCTION__);
 
-	kt = kthread_run(kthread_do_things, &unused, "mykthread");
+	kt = kthread_run(kthread_do_things, &unused, "mycompletion");
 
 	wait_for_completion(&done);
 
-	printk(KERN_INFO "kthread: END %s\n", __FUNCTION__);
+	printk(KERN_INFO "mycompletion: END %s\n", __FUNCTION__);
 	return 0;
 }
 
 static void __exit mycompletion_exit(void)
 {
-	printk(KERN_INFO "kthread: %s\n", __FUNCTION__);
+	printk(KERN_INFO "completion: %s\n", __FUNCTION__);
 }
 
 module_init(mycompletion_init);
