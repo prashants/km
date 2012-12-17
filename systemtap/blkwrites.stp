@@ -1,0 +1,13 @@
+probe kernel.function("*@fs/ext3") {
+	printf("%s -> %s\n", thread_indent(1), probefunc());
+}
+
+/*
+probe kernel.function("*@fs/ext3/*").return {
+	printf("%s -> %s\n", thread_indent(1), probefunc());
+}
+
+probe kernel.statement("*@fs/open.c:836") {
+	printf("local variables %s\n", $$locals);
+}
+*/

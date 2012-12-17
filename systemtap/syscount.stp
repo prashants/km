@@ -1,0 +1,8 @@
+global syscalls
+probe syscall.* { syscalls[name] += 1 }
+probe timer.s(10) {
+	foreach (n in syscalls)
+	printf("%s = %d\n", n, syscalls[n]);
+	delete syscalls
+}
+
