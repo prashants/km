@@ -1,0 +1,33 @@
+probe begin
+{
+	printf("starting probe of ndas\n");
+}
+
+probe end
+{
+	printf("ending probe of ndas\n");
+}
+
+probe module("ndas_block").function("*")
+{
+	printf("ndas_block: %s\n", probefunc());
+	/* printf("parameters %s\n", $$parms); */
+	/* printf("locals %s\n", $$locals); */
+	/* printf("variables %s\n", $$vars); */
+}
+
+probe module("ndas_core").function("*")
+{
+	printf("ndas_core: %s\n", probefunc());
+}
+
+probe module("ndas_sal").function("*")
+{
+	printf("ndas_sal: %s\n", probefunc());
+}
+
+probe timer.s(600)
+{
+	exit();
+}
+

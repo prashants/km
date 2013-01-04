@@ -1,0 +1,10 @@
+probe syscall.execve
+{
+	printf("%s(%d) execve\n", execname(), pid())
+}
+
+probe syscall.exit
+{
+	printf("%s(%d) exit\n", execname(), pid())
+}
+

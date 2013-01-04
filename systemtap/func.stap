@@ -1,0 +1,11 @@
+function sayhi()
+{
+	printf("hello world\n");
+}
+
+probe begin
+{
+	sayhi();
+	exit();
+}
+

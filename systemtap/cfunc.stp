@@ -1,0 +1,11 @@
+probe kernel.function("*@net/ipv4/ip_input.c")
+{
+	printf("time = %u function = %s\n", gettimeofday_s(), probefunc());
+}
+
+probe timer.ms(1000)
+{
+	printf("timeout reached\n");
+	exit();
+}
+
