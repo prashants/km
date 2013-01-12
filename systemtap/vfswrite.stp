@@ -1,0 +1,10 @@
+probe kernel.function("vfs_write")
+{
+	printf("vfs write called\n");
+}
+
+probe timer.ms(10000)
+{
+	printf("timeout reached\n");
+	exit()
+}

@@ -1,0 +1,8 @@
+global counter
+probe timer.jiffies(100)
+{
+	printf("count = %d\n", counter++)
+	if (counter > 10)
+		exit();
+}
+

@@ -1,0 +1,13 @@
+probe kernel.function("ip_rcv")
+{
+	printf("packet received\n");
+	printf("parameters %s\n", $$parms);
+	printf("locals %s\n", $$locals);
+	printf("variables %s\n", $$vars);
+}
+
+probe timer.ms(4000)
+{
+	printf("timeout reached\n");
+	exit()
+}
