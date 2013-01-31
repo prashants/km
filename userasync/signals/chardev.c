@@ -1,5 +1,5 @@
 /*
- * chardev - Character device with blocking read
+ * chardev - Send signal to user application
  *
  * Written in 2012 by Prashant P Shah <pshah.mumbai@gmail.com>
  *
@@ -23,16 +23,18 @@
 #include <linux/fs.h>
 #include <linux/file.h>
 #include <linux/timer.h>
+#include <linux/signal.h>
+#include <asm-generic/siginfo.h>
 #include <linux/buffer_head.h>
+
+#include "ioctl.h"
 
 int chardev_major = 0;
 char device_name[] = "userspace";
 struct class *chardev_class;
 
 struct timer_list read_timer;
-atomic_t counter;
-
-static DECLARE_WAIT_QUEUE_HEAD(queue);
+unsigned long pid;
 
 struct chardev {
 	int minor;
@@ -44,32 +46,36 @@ struct chardev *d;
 
 static void timer_func(unsigned long data)
 {
+	struct siginfo info;
+	struct task_struct *user_task;
+	struct pid *pid_struct;
 	printk(KERN_INFO "chardev: %s\n", __FUNCTION__);
-	atomic_set(&counter, 1);
-	read_timer.expires = jiffies + (HZ * 5);
+
+	/* Locate the task from pid */
+	//user_task = find_task_by_vpid(pid);
+	pid_struct = find_get_pid(pid);
+	user_task = pid_task(pid_struct, PIDTYPE_PID);
+
+	if (user_task == NULL) {
+		printk(KERN_ERR "Cannot find userspace pid\n");
+	} else {
+		/* Send signal to userspace */
+		memset(&info, 0x00, sizeof(info));
+		info.si_signo = SIGIO;
+		info.si_code = SI_QUEUE;
+		info.si_int = 1234;
+		send_sig_info(SIGIO, &info, user_task);
+	}
+
+	/* Reset timer */
+	read_timer.expires = jiffies + (HZ * 10);
 	add_timer(&read_timer);
-	wake_up_interruptible(&queue);
 }
 
 static ssize_t chardev_read(struct file *filp, char __user *buf,
 		size_t count, loff_t *offp)
 {
-	printk(KERN_INFO "chardev: %s\n", __FUNCTION__);
-
-	while (atomic_read(&counter) == 0) {
-		if (filp->f_flags & O_NONBLOCK)
-			return -EAGAIN;
-
-		wait_event_interruptible(queue, atomic_read(&counter) == 1);
-	}
-
-	/* Copy data to user space */
-	if (copy_to_user(buf, "test", 4)) {
-		return -EFAULT;
-	}
-	atomic_set(&counter, 0);
-
-	return 4;
+	return -EPERM;
 }
 
 static ssize_t chardev_write(struct file *filp, const char __user *buf,
@@ -97,6 +103,18 @@ static int chardev_rel(struct inode *inode, struct file *filp)
 static long chardev_ioctl(struct file *f,
 		unsigned int cmd, unsigned long arg)
 {
+	switch (cmd) {
+
+	case PROCESS_ID:
+		pid = arg;
+		printk("signals: IOCTL pid=%lu\n", pid);
+		return 0;
+
+	default:
+		return -ENOTTY;
+
+	}
+
 	return -ENOTTY;
 }
 
@@ -177,11 +195,10 @@ static int __init chardev_init(void)
 	d->status = 1;
 
 	/* Setup timer to send data */
-	atomic_set(&counter, 1);
 	init_timer(&read_timer);
 	read_timer.data = (unsigned long)jiffies;
 	read_timer.function = timer_func; 
-	read_timer.expires = jiffies + (HZ * 5);
+	read_timer.expires = jiffies + (HZ * 10);
 	add_timer(&read_timer);
 
 	return 0;
