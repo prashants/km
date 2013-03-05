@@ -20,8 +20,8 @@
 #include <linux/blkdev.h>
 #include <linux/buffer_head.h>
 
-#define BLOCK_NUM		137038
-#define SECTOR_NUM		1096304
+#define BLOCK_NUM		10240 	// 5100	// 137038
+#define SECTOR_NUM		1061885 // 81920 // 40801 // 1096304
 
 char *data;
 struct block_device *bd;
@@ -88,7 +88,7 @@ static void writebio(sector_t sect, char *data)
         bio.bi_vcnt = 1;
         bio.bi_idx = 0;
         bio.bi_size = size;
-        bio.bi_bdev = bd;
+        bio.bi_bdev = bd->bd_contains;
         bio.bi_sector = sect;
         init_completion(&complete);
         bio.bi_private = &complete;
@@ -116,10 +116,10 @@ static int __init writeblock_init(void)
 	}
 
 	for (c = 0; c < 4096; c++) {
-		data[c] = 'B';
+		data[c] = 'J';
 	}
 
-	bd_file = filp_open("/dev/sda1", O_RDONLY, 0600);
+	bd_file = filp_open("/dev/sde2", O_RDONLY, 0600);
 	if (IS_ERR(bd_file)) {
 		printk(KERN_INFO "error opening bd file\n");
 		return -EIO;
