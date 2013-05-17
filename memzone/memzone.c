@@ -24,6 +24,8 @@
 
 static int __init memzone_init(void)
 {
+	int c;
+	struct zone *curzone;
 	printk(KERN_INFO "memzone: %s\n", __FUNCTION__);
 
 #if LINUX_VERSION_CODE <= KERNEL_VERSION(2, 6, 19)
