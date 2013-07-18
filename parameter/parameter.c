@@ -54,5 +54,5 @@ module_init(param_init);
 module_exit(param_exit);
 
 MODULE_LICENSE("Dual MIT/GPL");
-MODULE_AUTHOR("Prashant Shah<pshah.mumbai@gmail.com>");
+MODULE_AUTHOR("Me");
 
