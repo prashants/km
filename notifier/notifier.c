@@ -29,9 +29,18 @@
 #include <linux/notifier.h>
 #include <linux/usb.h>
 #include <linux/netdevice.h>
+#include <linux/reboot.h>
 
-static int netlink_notifier_func(struct notifier_block *self, unsigned long action,
-		void *dev)
+static int shutdown_notifier_func(struct notifier_block *self,
+		unsigned long action, void *dev)
+{
+	printk(KERN_ERR "notifiers: %s\n", __FUNCTION__);
+
+	return 0;
+}
+
+static int netlink_notifier_func(struct notifier_block *self,
+		unsigned long action, void *dev)
 {
 	printk(KERN_INFO "notifier: %s\n", __FUNCTION__);
 
@@ -85,8 +94,8 @@ static int netlink_notifier_func(struct notifier_block *self, unsigned long acti
 	return NOTIFY_OK;
 }
 
-static int usb_notifier_func(struct notifier_block *self, unsigned long action,
-		void *dev)
+static int usb_notifier_func(struct notifier_block *self,
+		unsigned long action, void *dev)
 {
 	printk(KERN_INFO "notifier: %s\n", __FUNCTION__);
 
@@ -109,6 +118,10 @@ static int usb_notifier_func(struct notifier_block *self, unsigned long action,
 	return NOTIFY_OK;
 }
 
+static struct notifier_block shutdown_notify = {
+	.notifier_call = shutdown_notifier_func,
+};
+
 struct notifier_block netlink_notify = {
 	.notifier_call = netlink_notifier_func,
 };
@@ -123,6 +136,7 @@ static int __init notifier_init(void)
 
 	usb_register_notify(&usb_notify);
 	register_netdevice_notifier(&netlink_notify);
+	register_reboot_notifier(&shutdown_notify);
 
 	return 0;
 }
@@ -131,6 +145,7 @@ static void __exit notifier_exit(void)
 {
 	printk(KERN_INFO "notifier: %s\n", __FUNCTION__);
 
+	unregister_reboot_notifier(&shutdown_notify);
 	unregister_netdevice_notifier(&netlink_notify);
 	usb_unregister_notify(&usb_notify);
 }
