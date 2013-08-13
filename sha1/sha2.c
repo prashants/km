@@ -39,16 +39,15 @@
 int plaintext_to_sha1(unsigned char *hash,
 		const char *plaintext, unsigned int len)
 {
-	struct page *page;
-	char *data;
-	int c;
+	struct page *page = NULL;
+	char *data = NULL;
+	int offset = 0;
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 19)
 
-	struct crypto_hash *tfm;
-	struct scatterlist sg;
-	struct hash_desc desc;
-	printk(KERN_ERR "sha1: %s\n", __FUNCTION__);
+	struct crypto_hash *tfm = NULL;
+	struct scatterlist sg = {0};
+	struct hash_desc desc = {0};
 
 	page = alloc_page(GFP_KERNEL);
 	if (!page) {
@@ -66,17 +65,18 @@ int plaintext_to_sha1(unsigned char *hash,
 	desc.flags = 0;
 
 	crypto_hash_init(&desc);
+	sg_init_one(&sg, (void *)data, PAGE_SIZE);
 
-	for (c = 0; c < MAX_LEN; c += PAGE_SIZE) {
+	for (offset = 0; offset < len; offset += PAGE_SIZE) {
 		memset(data, 0x00, PAGE_SIZE);
-		if ((MAX_LEN - c) <= PAGE_SIZE) {
-			memcpy(data, plaintext + c, (MAX_LEN - c));
-			sg_init_one(&sg, (void *)data, (MAX_LEN - c));
-			crypto_hash_update(&desc, &sg, (MAX_LEN - c));
-		} else {
-			memcpy(data, plaintext + c, PAGE_SIZE);
-			sg_init_one(&sg, (void *)data, PAGE_SIZE);
+		/* Check if the data is page size or part of page */
+		if ((len - offset) >= PAGE_SIZE) {
+			memcpy(data, plaintext + offset, PAGE_SIZE);
 			crypto_hash_update(&desc, &sg, PAGE_SIZE);
+		} else {
+			memcpy(data, plaintext + offset, (len - offset));
+			sg_init_one(&sg, (void *)data, (len - offset));
+			crypto_hash_update(&desc, &sg, (len - offset));
 		}
 	}
 
@@ -88,7 +88,6 @@ int plaintext_to_sha1(unsigned char *hash,
 
 	struct crypto_tfm *tfm;
 	struct scatterlist sg;
-	printk(KERN_ERR "sha1: %s\n", __FUNCTION__);
 
 	page = alloc_page(GFP_KERNEL);
 	if (!page) {
@@ -103,31 +102,34 @@ int plaintext_to_sha1(unsigned char *hash,
 	}
 
 	crypto_digest_init(tfm);
+	sg_init_one(&sg, (u8 *)data, PAGE_SIZE);
 
-	for (c = 0; c < MAX_LEN; c += PAGE_SIZE) {
+	for (offset = 0; offset < len; offset += PAGE_SIZE) {
 		memset(data, 0x00, PAGE_SIZE);
-		if ((MAX_LEN - c) <= PAGE_SIZE) {
-			memcpy(data, plaintext + c, (MAX_LEN - c));
-			sg_init_one(&sg, (u8 *)data, (MAX_LEN - c));
+		if ((len - offset) >= PAGE_SIZE) {
+			memcpy(data, plaintext + offset, PAGE_SIZE);
 			crypto_digest_update(tfm, &sg, 1);
 		} else {
-			memcpy(data, plaintext + c, PAGE_SIZE);
-			sg_init_one(&sg, (u8 *)data, PAGE_SIZE);
+			memcpy(data, plaintext + offset, (len - offset));
+			sg_init_one(&sg, (u8 *)data, (len - offset));
 			crypto_digest_update(tfm, &sg, 1);
 		}
 	}
+
 	crypto_digest_final(tfm, hash);
+
 	crypto_free_tfm(tfm);
 
 #endif
 
 	__free_page(page);
 	return 0;
-}
 
-static int __init sha1_init(void)
+}
+static int __init sha2_init(void)
 {
 	unsigned char output[SHA1_LENGTH];
+	unsigned char *input = "thisisatest";
 	unsigned char *buf;
 	int i, ret;
 	printk(KERN_ERR "sha1: %s\n", __FUNCTION__);
@@ -138,10 +140,15 @@ static int __init sha1_init(void)
 	}
 
 	memset(buf, 0x0A, MAX_LEN);
+
 	memset(output, 0x00, SHA1_LENGTH);
+	ret = plaintext_to_sha1(output, input, 11);
+	for (i = 0; i < 20; i++) {
+		printk(KERN_ERR "%02d - %d\n", i, output[i]);
+	}
 
+	memset(output, 0x00, SHA1_LENGTH);
 	ret = plaintext_to_sha1(output, buf, MAX_LEN);
-
 	for (i = 0; i < 20; i++) {
 		printk(KERN_ERR "%02d - %d\n", i, output[i]);
 	}
@@ -152,13 +159,13 @@ static int __init sha1_init(void)
 	return 0;
 }
 
-static void __exit sha1_exit(void)
+static void __exit sha2_exit(void)
 {
 	printk(KERN_ERR "sha1: %s\n", __FUNCTION__);
 }
 
-module_init(sha1_init);
-module_exit(sha1_exit);
+module_init(sha2_init);
+module_exit(sha2_exit);
 
 MODULE_LICENSE("Dual MIT/GPL");
 MODULE_AUTHOR("Me");
